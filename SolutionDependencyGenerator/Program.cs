@@ -335,7 +335,8 @@ class SolutionDependencyGenerator
 
         var symbolName = symbol.Name;
 
-        (var puml, var dot) = CreatePUMLDotDependProcess(symbol, dependList, symbolList, umlElementInfos, dotNodeInfos);
+        //(var puml, var dot) = CreatePUMLDotDependProcess(symbol, dependList, symbolList, umlElementInfos, dotNodeInfos);
+        (var puml, var dot) = CreatePUMLDotDependProcess2(symbol, dependList, symbolList, umlElementInfos, dotNodeInfos);
         if (!string.IsNullOrEmpty(puml))
         {
             var pumlPath = Path.Combine(folderPath, $"{symbolName}.puml");
@@ -358,7 +359,8 @@ class SolutionDependencyGenerator
             includes.Append("\r\n");
         }
 
-        (var lmup, var tod) = CreateReversePUMLDotDependProcess(symbol, dependList, symbolList, umlElementInfos, dotNodeInfos);
+        //(var lmup, var tod) = CreateReversePUMLDotDependProcess(symbol, dependList, symbolList, umlElementInfos, dotNodeInfos);
+        (var lmup, var tod) = CreatePUMLDotDependProcess2(symbol, dependList, symbolList, umlElementInfos, dotNodeInfos, true);
         if (!string.IsNullOrEmpty(lmup))
         {
             var pumlPath = Path.Combine(folderPath, $"{symbolName}{REVERSE_FILE_POSTFIX}.puml");
@@ -384,17 +386,151 @@ class SolutionDependencyGenerator
         return includes.ToString();
     }
 
+//    /// <summary>
+//    /// create puml and dot depends
+//    /// </summary>
+//    /// <param name="symbol"></param>
+//    /// <param name="dependList"></param>
+//    /// <param name="symbolList"></param>
+//    /// <param name="umlElementInfos"></param>
+//    /// <param name="dotNodeInfos"></param>
+//    /// <returns></returns>
+//    private static (string, string) CreatePUMLDotDependProcess(INamedTypeSymbol symbol, List<(string from, string to)> dependList, Dictionary<string, INamedTypeSymbol> symbolList, Dictionary<string, string> umlElementInfos, Dictionary<string, string> dotNodeInfos)
+//    {
+//        var symbolFullName = symbol?.ToDisplayString() ?? string.Empty;
+
+//        var puml = new StringBuilder();
+//        puml.Append("""
+//@startuml
+//left to right direction
+//%elemdefs%
+//""");
+//        var elemDefs = new HashSet<string>();
+
+//        var dot = new StringBuilder();
+//        dot.Append($"digraph \"{symbolFullName}\" ");
+//        dot.Append("""
+//{
+//    rankdir="TB";
+//    node [
+//        shape="box",
+//        fontname="Meiryo UI",
+//        fontsize="12pt"
+//    ];
+
+//%nodedefs%
+//""");
+//        var dotNodeDefs = new HashSet<string>();
+
+//        var deps = dependList.Where(item => (item.from == symbolFullName)).ToList();
+//        if (deps.Count == 0)
+//        {
+//            return (string.Empty, string.Empty);
+//        }
+
+//        var processed = new HashSet<string>();
+
+//        var nextParents = new HashSet<string>();
+//        foreach (var (from, to) in deps)
+//        {
+//            Console.WriteLine($"{from} => {to}");
+
+//            AddPUML(puml, elemDefs, from, to, symbolList, umlElementInfos);
+//            AddDot(dot, dotNodeDefs, from, to, symbolList, dotNodeInfos);
+
+//            nextParents.Add(to);
+//            processed.Add(to);
+//        }
+
+//        while (nextParents.Count > 0)
+//        {
+//            var newParents = new HashSet<string>();
+//            foreach (var p in nextParents)
+//            {
+//                var pdeps = dependList.Where(item => (item.from == p)).ToList();
+
+//                foreach (var (from, to) in pdeps)
+//                {
+//                    Console.WriteLine($"{from} => {to}");
+
+//                    AddPUML(puml, elemDefs, from, to, symbolList, umlElementInfos);
+//                    AddDot(dot, dotNodeDefs, from, to, symbolList, dotNodeInfos);
+
+//                    if (!nextParents.Contains(to) && !newParents.Contains(to) && !processed.Contains(to))
+//                    {
+//                        newParents.Add(to);
+//                    }
+//                }
+//            }
+
+//            nextParents = newParents;
+//        }
+
+//        puml.Append("@enduml");
+//        dot.Append('}');
+
+//        // concat element defs
+//        var elemInfo = new StringBuilder();
+//        foreach (var elem in elemDefs)
+//        {
+//            elemInfo.Append($"{elem}\r\n");
+//        }
+//        puml.Replace("%elemdefs%", elemInfo.ToString());
+
+//        // concat node styles
+//        var dotNodeStyle = new StringBuilder();
+//        foreach (var node in dotNodeDefs)
+//        {
+//            dotNodeStyle.Append($"{node}\r\n");
+//        }
+//        dotNodeStyle.Append("\r\n");
+//        dot.Replace("%nodedefs%", dotNodeStyle.ToString());
+
+//        return (puml.ToString(), dot.ToString());
+//    }
+
     /// <summary>
-    /// create puml and dot depends
+    /// create puml and dot both directions
     /// </summary>
     /// <param name="symbol"></param>
     /// <param name="dependList"></param>
     /// <param name="symbolList"></param>
     /// <param name="umlElementInfos"></param>
     /// <param name="dotNodeInfos"></param>
+    /// <param name="isReverse"></param>
     /// <returns></returns>
-    private static (string, string) CreatePUMLDotDependProcess(INamedTypeSymbol symbol, List<(string from, string to)> dependList, Dictionary<string, INamedTypeSymbol> symbolList, Dictionary<string, string> umlElementInfos, Dictionary<string, string> dotNodeInfos)
+    private static (string, string) CreatePUMLDotDependProcess2(INamedTypeSymbol symbol, List<(string from, string to)> dependList, Dictionary<string, INamedTypeSymbol> symbolList, Dictionary<string, string> umlElementInfos, Dictionary<string, string> dotNodeInfos, bool isReverse = false)
     {
+        var searchFunc = (isReverse) ?
+                new Func<(string f, string t), string, bool>((item, n) =>
+                {
+                    return (item.t == n);
+                }) :
+                new Func<(string f, string t), string, bool>((item, n) =>
+                {
+                    return (item.f == n);
+                });
+
+        var addHashAction = (isReverse) ?
+                new Action<(string f, string t), HashSet<string>>((item, hash) =>
+                {
+                    hash.Add(item.f);
+                }) :
+                new Action<(string f, string t), HashSet<string>>((item, hash) =>
+                {
+                    hash.Add(item.t);
+                });
+
+        var checkContainsFunc = (isReverse) ?
+                new Func<(string f, string t), HashSet<string>, bool>((item, hash) =>
+                {
+                    return hash.Contains(item.f);
+                }) :
+                new Func<(string f, string t), HashSet<string>, bool>((item, hash) =>
+                {
+                    return hash.Contains(item.t);
+                });
+
         var symbolFullName = symbol?.ToDisplayString() ?? string.Empty;
 
         var puml = new StringBuilder();
@@ -420,7 +556,7 @@ left to right direction
 """);
         var dotNodeDefs = new HashSet<string>();
 
-        var deps = dependList.Where(item => (item.from == symbolFullName)).ToList();
+        var deps = dependList.Where(item => searchFunc(item, symbolFullName)).ToList();
         if (deps.Count == 0)
         {
             return (string.Empty, string.Empty);
@@ -428,7 +564,7 @@ left to right direction
 
         var processed = new HashSet<string>();
 
-        var nextParents = new HashSet<string>();
+        var nextTargets = new HashSet<string>();
         foreach (var (from, to) in deps)
         {
             Console.WriteLine($"{from} => {to}");
@@ -436,16 +572,17 @@ left to right direction
             AddPUML(puml, elemDefs, from, to, symbolList, umlElementInfos);
             AddDot(dot, dotNodeDefs, from, to, symbolList, dotNodeInfos);
 
-            nextParents.Add(to);
-            processed.Add(to);
+            var tpl = (from, to);
+            addHashAction(tpl, nextTargets);
+            addHashAction(tpl, processed);
         }
 
-        while (nextParents.Count > 0)
+        while (nextTargets.Count > 0)
         {
-            var newParents = new HashSet<string>();
-            foreach (var p in nextParents)
+            var newTargets = new HashSet<string>();
+            foreach (var p in nextTargets)
             {
-                var pdeps = dependList.Where(item => (item.from == p)).ToList();
+                var pdeps = dependList.Where(item => searchFunc(item, p)).ToList();
 
                 foreach (var (from, to) in pdeps)
                 {
@@ -454,14 +591,15 @@ left to right direction
                     AddPUML(puml, elemDefs, from, to, symbolList, umlElementInfos);
                     AddDot(dot, dotNodeDefs, from, to, symbolList, dotNodeInfos);
 
-                    if (!nextParents.Contains(to) && !newParents.Contains(to) && !processed.Contains(to))
+                    var tpl = (from, to);
+                    if (!checkContainsFunc(tpl, nextTargets) && !checkContainsFunc(tpl, newTargets) && !checkContainsFunc(tpl, processed))
                     {
-                        newParents.Add(to);
+                        addHashAction(tpl, newTargets);
                     }
                 }
             }
 
-            nextParents = newParents;
+            nextTargets = newTargets;
         }
 
         puml.Append("@enduml");
@@ -487,109 +625,109 @@ left to right direction
         return (puml.ToString(), dot.ToString());
     }
 
-    /// <summary>
-    /// create reverse puml and dot depends
-    /// </summary>
-    /// <param name="symbol"></param>
-    /// <param name="dependList"></param>
-    /// <param name="symbolList"></param>
-    /// <param name="umlElementInfos"></param>
-    /// <param name="dotNodeInfos"></param>
-    /// <returns></returns>
-    private static (string, string) CreateReversePUMLDotDependProcess(INamedTypeSymbol symbol, List<(string from, string to)> dependList, Dictionary<string, INamedTypeSymbol> symbolList, Dictionary<string, string> umlElementInfos, Dictionary<string, string> dotNodeInfos)
-    {
-        var symbolFullName = symbol?.ToDisplayString() ?? string.Empty;
+//    /// <summary>
+//    /// create reverse puml and dot depends
+//    /// </summary>
+//    /// <param name="symbol"></param>
+//    /// <param name="dependList"></param>
+//    /// <param name="symbolList"></param>
+//    /// <param name="umlElementInfos"></param>
+//    /// <param name="dotNodeInfos"></param>
+//    /// <returns></returns>
+//    private static (string, string) CreateReversePUMLDotDependProcess(INamedTypeSymbol symbol, List<(string from, string to)> dependList, Dictionary<string, INamedTypeSymbol> symbolList, Dictionary<string, string> umlElementInfos, Dictionary<string, string> dotNodeInfos)
+//    {
+//        var symbolFullName = symbol?.ToDisplayString() ?? string.Empty;
 
-        var puml = new StringBuilder();
-        puml.Append("""
-@startuml
-left to right direction
-%elemdefs%
-""");
+//        var puml = new StringBuilder();
+//        puml.Append("""
+//@startuml
+//left to right direction
+//%elemdefs%
+//""");
             
-        var elemDefs = new HashSet<string>();
+//        var elemDefs = new HashSet<string>();
 
-        var dot = new StringBuilder();
-        dot.Append($"digraph \"{symbolFullName}\" ");
-        dot.Append("""
-{
-    rankdir="TB";
-    node [
-        shape="box",
-        fontname="Meiryo UI",
-        fontsize="12pt"
-    ];
+//        var dot = new StringBuilder();
+//        dot.Append($"digraph \"{symbolFullName}\" ");
+//        dot.Append("""
+//{
+//    rankdir="TB";
+//    node [
+//        shape="box",
+//        fontname="Meiryo UI",
+//        fontsize="12pt"
+//    ];
 
-%nodedefs%
-""");
-        var dotNodeDefs = new HashSet<string>();
+//%nodedefs%
+//""");
+//        var dotNodeDefs = new HashSet<string>();
 
-        var deps = dependList.Where(item => (item.to == symbolFullName)).ToList();
-        if (deps.Count == 0)
-        {
-            return (string.Empty, string.Empty);
-        }
+//        var deps = dependList.Where(item => (item.to == symbolFullName)).ToList();
+//        if (deps.Count == 0)
+//        {
+//            return (string.Empty, string.Empty);
+//        }
 
-        var processed = new HashSet<string>();
+//        var processed = new HashSet<string>();
 
-        var nextChildren = new HashSet<string>();
-        foreach (var (from, to) in deps)
-        {
-            Console.WriteLine($"{from} => {to}");
+//        var nextChildren = new HashSet<string>();
+//        foreach (var (from, to) in deps)
+//        {
+//            Console.WriteLine($"{from} => {to}");
 
-            AddPUML(puml, elemDefs, from, to, symbolList, umlElementInfos);
-            AddDot(dot, dotNodeDefs, from, to, symbolList, dotNodeInfos);
+//            AddPUML(puml, elemDefs, from, to, symbolList, umlElementInfos);
+//            AddDot(dot, dotNodeDefs, from, to, symbolList, dotNodeInfos);
 
-            nextChildren.Add(from);
-            processed.Add(from);
-        }
+//            nextChildren.Add(from);
+//            processed.Add(from);
+//        }
 
-        while (nextChildren.Count > 0)
-        {
-            var newChildren = new HashSet<string>();
-            foreach (var p in nextChildren)
-            {
-                var pdeps = dependList.Where(item => (item.to == p)).ToList();
+//        while (nextChildren.Count > 0)
+//        {
+//            var newChildren = new HashSet<string>();
+//            foreach (var p in nextChildren)
+//            {
+//                var pdeps = dependList.Where(item => (item.to == p)).ToList();
 
-                foreach (var (from, to) in pdeps)
-                {
-                    Console.WriteLine($"{from} => {to}");
+//                foreach (var (from, to) in pdeps)
+//                {
+//                    Console.WriteLine($"{from} => {to}");
 
-                    AddPUML(puml, elemDefs, from, to, symbolList, umlElementInfos);
-                    AddDot(dot, dotNodeDefs, from, to, symbolList, dotNodeInfos);
+//                    AddPUML(puml, elemDefs, from, to, symbolList, umlElementInfos);
+//                    AddDot(dot, dotNodeDefs, from, to, symbolList, dotNodeInfos);
 
-                    if (!nextChildren.Contains(from) && !newChildren.Contains(from) && !processed.Contains(from))
-                    {
-                        newChildren.Add(from);
-                    }
-                }
-            }
+//                    if (!nextChildren.Contains(from) && !newChildren.Contains(from) && !processed.Contains(from))
+//                    {
+//                        newChildren.Add(from);
+//                    }
+//                }
+//            }
 
-            nextChildren = newChildren;
-        }
+//            nextChildren = newChildren;
+//        }
 
-        puml.Append("@enduml");
-        dot.Append('}');
+//        puml.Append("@enduml");
+//        dot.Append('}');
 
-        // concat element defs
-        var elemInfo = new StringBuilder();
-        foreach (var elem in elemDefs)
-        {
-            elemInfo.Append($"{elem}\r\n");
-        }
-        puml.Replace("%elemdefs%", elemInfo.ToString());
+//        // concat element defs
+//        var elemInfo = new StringBuilder();
+//        foreach (var elem in elemDefs)
+//        {
+//            elemInfo.Append($"{elem}\r\n");
+//        }
+//        puml.Replace("%elemdefs%", elemInfo.ToString());
 
-        // concat node styles
-        var dotNodeStyle = new StringBuilder();
-        foreach (var node in dotNodeDefs)
-        {
-            dotNodeStyle.Append($"{node}\r\n");
-        }
-        dotNodeStyle.Append("\r\n");
-        dot.Replace("%nodedefs%", dotNodeStyle.ToString());
+//        // concat node styles
+//        var dotNodeStyle = new StringBuilder();
+//        foreach (var node in dotNodeDefs)
+//        {
+//            dotNodeStyle.Append($"{node}\r\n");
+//        }
+//        dotNodeStyle.Append("\r\n");
+//        dot.Replace("%nodedefs%", dotNodeStyle.ToString());
 
-        return (puml.ToString(), dot.ToString());
-    }
+//        return (puml.ToString(), dot.ToString());
+//    }
 
     /// <summary>
     /// add puml

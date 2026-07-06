@@ -398,7 +398,11 @@ class SolutionDependencyGenerator
         var symbolFullName = symbol?.ToDisplayString() ?? string.Empty;
 
         var puml = new StringBuilder();
-        puml.Append("@startuml\r\n%elemdefs%\r\n");
+        puml.Append("""
+@startuml
+left to right direction
+%elemdefs%
+""");
         var elemDefs = new HashSet<string>();
 
         var dot = new StringBuilder();
@@ -497,7 +501,12 @@ class SolutionDependencyGenerator
         var symbolFullName = symbol?.ToDisplayString() ?? string.Empty;
 
         var puml = new StringBuilder();
-        puml.Append("@startuml\r\n%elemdefs%\r\n");
+        puml.Append("""
+@startuml
+left to right direction
+%elemdefs%
+""");
+            
         var elemDefs = new HashSet<string>();
 
         var dot = new StringBuilder();
@@ -622,10 +631,10 @@ class SolutionDependencyGenerator
                 switch (to.TypeKind)
                 {
                     case TypeKind.Class:
-                        arrow = "<|--";
+                        arrow = "--|>";
                         break;
                     case TypeKind.Interface:
-                        arrow = "<|..";
+                        arrow = "..|>";
                         break;
                           
                 }
@@ -638,13 +647,13 @@ class SolutionDependencyGenerator
                         arrow = "--";
                         break;
                     case TypeKind.Interface:
-                        arrow = "<|--";
+                        arrow = "--|>";
                         break;
                 }
                 break;
         }
 
-        puml.Append($"{to.ToDisplayString()} {arrow} {from.ToDisplayString()}\r\n");
+        puml.Append($"{from.ToDisplayString()} {arrow} {to.ToDisplayString()}\r\n");
     }
 
     /// <summary>
